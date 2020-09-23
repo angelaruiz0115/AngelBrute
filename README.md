@@ -1,5 +1,5 @@
 # AngelBrute
-Bruteforce script for Instagram
+Bruteforce script for Instagram. Advanced bruteforce script that extracts CSRF tokens for authentication. Still a work in progress (need to tweak post values).
 
 ## Usage 
 ```
