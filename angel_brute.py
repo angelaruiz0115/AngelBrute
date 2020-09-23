@@ -66,15 +66,11 @@ def craft_response(username, password, csrf_token):
     "Accept-Encoding": "gzip, deflate",
     "X-CSRFToken": csrf_token,
     "X-Instagram-AJAX": "1",
-    #"X-IG-App-ID": "936619743392459",
     "X-IG-WWW-Claim": "0",
     "Content-Type": "application/x-www-form-urlencoded",
     "X-Requested-With": "XMLHttpRequest",
-    #Content-Length: 279
     "Origin": "https://www.instagram.com",
-    #Connection: close
     "Referer": "https://www.instagram.com/",
-    #Cookie: ig_did=14C051C6-A69F-4465-97EB-0EC8201E4CC7; csrftoken=XeBkUDlkO5oigGFj8WVIYy3Fgu7aeCQ8; mid=X2UR9AAEAAF6CGyA_gfePY79zaUv
     "Cookie": "csrf_token=" + csrf_token
   }
 
