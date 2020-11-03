@@ -3,5 +3,5 @@ Bruteforce script for Instagram. Advanced bruteforce script that extracts CSRF t
 
 ## Usage 
 ```
-python angel_brute.py -u {username} -w {path to password list} -p {path to proxy list}
+python angel_brute.py -u {username} -w {path to password list} -p {path to proxy list} -t {number of threads}
 ```
